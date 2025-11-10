@@ -51,5 +51,31 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"Erreur lors de la lecture du fichier : {e}")
 
-else:
-    st.info("💡 Charge ton fichier Excel pour lancer l'analyse.")
+else:    # =========================
+# Section de catégorisation
+# =========================
+st.subheader("📝 Catégoriser les entités")
+
+# On combine toutes les entités pour éviter les doublons
+combined = pd.concat([received, paid])
+combined = combined.drop_duplicates(subset=['counterparty'])
+
+# Dictionnaire pour stocker les catégories
+category_dict = {}
+
+# Création d’un champ texte pour chaque entité
+for e in combined['counterparty']:
+    cat = st.text_input(f"Catégorie pour '{e}'", key=e, placeholder="Ex : salarié, fournisseur, virement interne, saisi...")
+    category_dict[e] = cat
+
+# Bouton pour télécharger les catégories
+if st.button("💾 Sauvegarder les catégories"):
+    cat_df = pd.DataFrame(list(category_dict.items()), columns=['counterparty', 'category'])
+    st.download_button(
+        "⬇️ Télécharger les catégories",
+        data=cat_df.to_csv(index=False).encode('utf-8'),
+        file_name="entities_categories.csv",
+        mime="text/csv"
+    )
+    st.success("✅ Catégories prêtes à être téléchargées !")
+
