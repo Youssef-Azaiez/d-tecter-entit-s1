@@ -38,6 +38,9 @@ def categorize_entity(counterparty, amount):
         return "Paiement client"
     if cp in [x.upper() for x in TRANSPORT]:
         return "Transport"
+# Transactions internes
+    if cp in [x.upper() for x in CLIENT_EXCEPTIONS]:
+        return "Interne"
     if cp in [x.upper() for x in SALARIES]:
         return "Salaires"
     if "SEIZURE" in cp or "SAISIE" in cp:
