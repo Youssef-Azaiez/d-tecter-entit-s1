@@ -5,15 +5,20 @@ st.set_page_config(page_title="Analyse de trésorerie", layout="wide")
 st.title("💰 Analyse automatique des virements et paiements")
 st.write("Téléverse ton fichier Excel contenant les colonnes **Nom de la contrepartie** et **Montant total (TTC)**")
 
+# Liste des catégories prédéfinies
+categories = ["Salarié", "Fournisseur", "Virement interne", "Saisi","frais bancaire","transport","Bureau","client", "Autre"]
+
 uploaded_file = st.file_uploader("📂 Charger ton fichier Excel (.xlsx)", type=["xlsx", "xls"])
 
 if uploaded_file is not None:
     try:
         df = pd.read_excel(uploaded_file, sheet_name=0)
         required_cols = ['Nom de la contrepartie', 'Montant total (TTC)']
+        
         if not all(col in df.columns for col in required_cols):
             st.error(f"Les colonnes {required_cols} doivent exister dans le fichier.")
         else:
+            # Préparation des données
             tx = df[required_cols].copy()
             tx = tx.rename(columns={
                 'Nom de la contrepartie': 'counterparty',
@@ -23,11 +28,13 @@ if uploaded_file is not None:
             tx['counterparty'] = tx['counterparty'].astype(str).str.strip()
             tx['amount'] = pd.to_numeric(tx['amount'], errors='coerce')
 
+            # Regroupement
             received = tx[tx['amount'] > 0].groupby('counterparty')['amount'].sum().reset_index().sort_values('amount', ascending=False)
             paid = tx[tx['amount'] < 0].groupby('counterparty')['amount'].sum().reset_index().sort_values('amount')
 
             st.success("✅ Analyse terminée avec succès !")
 
+            # Affichage des résultats
             col1, col2 = st.columns(2)
             with col1:
                 st.subheader("📥 Entités ayant reçu de l'argent")
@@ -48,34 +55,30 @@ if uploaded_file is not None:
                     mime="text/csv"
                 )
 
+            # =========================
+            # Section de catégorisation avec dropdown
+            # =========================
+            st.subheader("📝 Catégoriser les entités")
+
+            combined = pd.concat([received, paid]).drop_duplicates(subset=['counterparty'])
+            category_dict = {}
+
+            for e in combined['counterparty']:
+                cat = st.selectbox(f"Catégorie pour '{e}'", options=categories, index=4, key=e)
+                category_dict[e] = cat
+
+            if st.button("💾 Sauvegarder les catégories"):
+                cat_df = pd.DataFrame(list(category_dict.items()), columns=['counterparty', 'category'])
+                st.download_button(
+                    "⬇️ Télécharger les catégories",
+                    data=cat_df.to_csv(index=False).encode('utf-8'),
+                    file_name="entities_categories.csv",
+                    mime="text/csv"
+                )
+                st.success("✅ Catégories prêtes à être téléchargées !")
+
     except Exception as e:
         st.error(f"Erreur lors de la lecture du fichier : {e}")
 
-else:    # =========================
-# Section de catégorisation
-# =========================
-st.subheader("📝 Catégoriser les entités")
-
-# On combine toutes les entités pour éviter les doublons
-combined = pd.concat([received, paid])
-combined = combined.drop_duplicates(subset=['counterparty'])
-
-# Dictionnaire pour stocker les catégories
-category_dict = {}
-
-# Création d’un champ texte pour chaque entité
-for e in combined['counterparty']:
-    cat = st.text_input(f"Catégorie pour '{e}'", key=e, placeholder="Ex : salarié, fournisseur, virement interne, saisi...")
-    category_dict[e] = cat
-
-# Bouton pour télécharger les catégories
-if st.button("💾 Sauvegarder les catégories"):
-    cat_df = pd.DataFrame(list(category_dict.items()), columns=['counterparty', 'category'])
-    st.download_button(
-        "⬇️ Télécharger les catégories",
-        data=cat_df.to_csv(index=False).encode('utf-8'),
-        file_name="entities_categories.csv",
-        mime="text/csv"
-    )
-    st.success("✅ Catégories prêtes à être téléchargées !")
-
+else:
+    st.info("💡 Charge ton fichier Excel pour lancer l'analyse.")
