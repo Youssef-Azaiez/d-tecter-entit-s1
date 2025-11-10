@@ -4,7 +4,7 @@ import numpy as np
 import altair as alt
 
 # ==============================
-# CONFIGURATION GÉNÉRALE
+# CONFIGURATION
 # ==============================
 st.set_page_config(page_title="Dashboard Trésorerie", layout="wide", initial_sidebar_state="expanded")
 st.title("💰 Dashboard intelligent de trésorerie")
@@ -28,9 +28,6 @@ SALARIES = [
 
 BUREAU = ["LIDL 1620", "NESPRESSO FRANCE S.A.S", "ORANGE SA-ORANGE", "EDF", "FNAC DARTY SERVICES"]
 
-# ==============================
-# ALT AIR CONFIG
-# ==============================
 alt.data_transformers.disable_max_rows()
 alt.renderers.set_embed_options(actions=False)
 
@@ -98,7 +95,7 @@ if uploaded_file is not None:
         st.error(f"Erreur de lecture du fichier : {e}")
         st.stop()
 
-    # Exclusion des entités internes pour les totaux
+    # Exclusion des entités internes pour les totaux globaux
     df_totals = df[~df['counterparty'].str.upper().isin([x.upper() for x in CLIENT_EXCEPTIONS])]
 
     # ==============================
@@ -109,9 +106,11 @@ if uploaded_file is not None:
     date_range = st.sidebar.date_input("Période", [min_date, max_date], min_value=min_date, max_value=max_date)
     start_date, end_date = pd.to_datetime(date_range[0]), pd.to_datetime(date_range[1])
 
-    selected_category = st.sidebar.selectbox("Catégorie à analyser", sorted(df['category'].unique()))
+    # Catégorie sélectionnée
+    categories = sorted(df['category'].unique())
+    selected_category = st.sidebar.selectbox("Catégorie à analyser", categories)
 
-    # Filtrage effectif
+    # Filtrage
     filt = (df['date'] >= start_date) & (df['date'] <= end_date)
     filtered = df[filt & (df['category'] == selected_category)].copy()
 
@@ -131,76 +130,78 @@ if uploaded_file is not None:
     st.markdown("---")
 
     # ==============================
-    # DÉTAIL DE LA CATÉGORIE SÉLECTIONNÉE
+    # MULTI-ONGLETS PAR CATÉGORIE
     # ==============================
-    st.subheader(f"📈 Analyse détaillée : **{selected_category}**")
-
     if filtered.empty:
         st.warning("Aucune transaction trouvée pour cette catégorie.")
         st.stop()
 
+    tab1, tab2, tab3, tab4 = st.tabs(["Barres", "Camembert", "Évolution", "Tableau"])
+    
     # KPI catégorie
     cat_total = filtered['amount'].sum()
     cat_positive = filtered[filtered['amount'] > 0]['amount'].sum()
     cat_negative = filtered[filtered['amount'] < 0]['amount'].sum()
 
+    st.markdown(f"### 💡 Résumé pour la catégorie : **{selected_category}**")
     c1, c2, c3 = st.columns(3)
     c1.metric("Total catégorie", f"{cat_total:,.2f} €")
     c2.metric("Montants positifs", f"{cat_positive:,.2f} €")
     c3.metric("Montants négatifs", f"{abs(cat_negative):,.2f} €")
 
-    # ==============================
-    # TOP ENTITÉS - BARRE
-    # ==============================
-    st.markdown("### 🏆 Top entités (Barres)")
     top_entities = filtered.groupby('counterparty')['amount'].sum().reset_index().sort_values('amount', ascending=False)
     top_entities['abs_amount'] = top_entities['amount'].abs()
 
-    bar_chart = alt.Chart(top_entities).mark_bar().encode(
-        x=alt.X("abs_amount:Q", title="Montant total (€)"),
-        y=alt.Y("counterparty:N", sort='-x', title="Entité"),
-        color=alt.condition(alt.datum.amount > 0, alt.value("#2ca02c"), alt.value("#d62728")),
-        tooltip=['counterparty', alt.Tooltip('amount', format=',.2f')]
-    )
-    st.altair_chart(bar_chart.properties(height=400), use_container_width=True)
+    # -----------------------------
+    # Onglet Barres
+    # -----------------------------
+    with tab1:
+        st.markdown("### 🏆 Top entités (Barres)")
+        bar_chart = alt.Chart(top_entities).mark_bar().encode(
+            x=alt.X("abs_amount:Q", title="Montant total (€)"),
+            y=alt.Y("counterparty:N", sort='-x', title="Entité"),
+            color=alt.condition(alt.datum.amount > 0, alt.value("#2ca02c"), alt.value("#d62728")),
+            tooltip=['counterparty', alt.Tooltip('amount', format=',.2f')]
+        )
+        st.altair_chart(bar_chart.properties(height=400), use_container_width=True)
 
-    # ==============================
-    # PIE CHART - CAMEMBERT
-    # ==============================
-    st.markdown("### 🥧 Répartition par entité (Camembert)")
-    pie_chart = alt.Chart(top_entities).mark_arc().encode(
-        theta=alt.Theta(field="abs_amount", type="quantitative"),
-        color=alt.Color(field="counterparty", type="nominal"),
-        tooltip=['counterparty', alt.Tooltip('amount', format=',.2f')]
-    )
-    st.altair_chart(pie_chart.properties(height=400), use_container_width=True)
+    # -----------------------------
+    # Onglet Camembert
+    # -----------------------------
+    with tab2:
+        st.markdown("### 🥧 Répartition par entité (Camembert)")
+        pie_chart = alt.Chart(top_entities).mark_arc().encode(
+            theta=alt.Theta(field="abs_amount", type="quantitative"),
+            color=alt.Color(field="counterparty", type="nominal"),
+            tooltip=['counterparty', alt.Tooltip('amount', format=',.2f')]
+        )
+        st.altair_chart(pie_chart.properties(height=400), use_container_width=True)
 
-    # ==============================
-    # TABLEAU DÉTAILLÉ PAR ENTITÉ
-    # ==============================
-    st.markdown("### 📋 Détail par entité")
-    st.dataframe(top_entities[['counterparty', 'amount']].rename(columns={'counterparty':'Entité','amount':'Montant'}), use_container_width=True)
+    # -----------------------------
+    # Onglet Évolution
+    # -----------------------------
+    with tab3:
+        st.markdown("### 📅 Évolution temporelle")
+        time_series = filtered.groupby(pd.Grouper(key='date', freq='W'))['amount'].sum().reset_index()
+        chart_time = alt.Chart(time_series).mark_line(point=True).encode(
+            x='date:T', y='amount:Q',
+            tooltip=['date', alt.Tooltip('amount', format=',.2f')]
+        )
+        st.altair_chart(chart_time.properties(height=300), use_container_width=True)
 
-    # ==============================
-    # ÉVOLUTION TEMPORELLE
-    # ==============================
-    st.markdown("### 📅 Évolution temporelle")
-    time_series = filtered.groupby(pd.Grouper(key='date', freq='W'))['amount'].sum().reset_index()
-    chart_time = alt.Chart(time_series).mark_line(point=True).encode(
-        x='date:T', y='amount:Q',
-        tooltip=['date', alt.Tooltip('amount', format=',.2f')]
-    )
-    st.altair_chart(chart_time.properties(height=300), use_container_width=True)
+    # -----------------------------
+    # Onglet Tableau
+    # -----------------------------
+    with tab4:
+        st.markdown("### 📋 Détail par entité")
+        st.dataframe(top_entities[['counterparty', 'amount']].rename(columns={'counterparty':'Entité','amount':'Montant'}), use_container_width=True)
 
-    # ==============================
-    # TABLE DÉTAILLÉE ET EXPORT CSV
-    # ==============================
-    st.markdown("### 📋 Transactions détaillées")
-    st.dataframe(filtered.sort_values('date', ascending=False), use_container_width=True)
+        st.markdown("### 📋 Transactions détaillées")
+        st.dataframe(filtered.sort_values('date', ascending=False), use_container_width=True)
 
-    csv = filtered.to_csv(index=False).encode('utf-8')
-    st.download_button("⬇️ Télécharger les données filtrées", data=csv,
-                       file_name=f"transactions_{selected_category}.csv", mime="text/csv")
+        csv = filtered.to_csv(index=False).encode('utf-8')
+        st.download_button("⬇️ Télécharger les données filtrées", data=csv,
+                           file_name=f"transactions_{selected_category}.csv", mime="text/csv")
 
 else:
-    st.info("💡 Charge ton fichier Excel pour
+    st.info("💡 Charge ton fichier Excel pour commencer l’analyse.")
