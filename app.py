@@ -150,19 +150,36 @@ if uploaded_file is not None:
     c3.metric("Montants négatifs", f"{abs(cat_negative):,.2f} €")
 
     # ==============================
-    # TOP ENTITÉS
+    # TOP ENTITÉS - BARRE
     # ==============================
-    st.markdown("### 🏆 Top entités")
+    st.markdown("### 🏆 Top entités (Barres)")
     top_entities = filtered.groupby('counterparty')['amount'].sum().reset_index().sort_values('amount', ascending=False)
     top_entities['abs_amount'] = top_entities['amount'].abs()
 
-    chart_entities = alt.Chart(top_entities).mark_bar().encode(
+    bar_chart = alt.Chart(top_entities).mark_bar().encode(
         x=alt.X("abs_amount:Q", title="Montant total (€)"),
         y=alt.Y("counterparty:N", sort='-x', title="Entité"),
         color=alt.condition(alt.datum.amount > 0, alt.value("#2ca02c"), alt.value("#d62728")),
         tooltip=['counterparty', alt.Tooltip('amount', format=',.2f')]
     )
-    st.altair_chart(chart_entities.properties(height=400), use_container_width=True)
+    st.altair_chart(bar_chart.properties(height=400), use_container_width=True)
+
+    # ==============================
+    # PIE CHART - CAMEMBERT
+    # ==============================
+    st.markdown("### 🥧 Répartition par entité (Camembert)")
+    pie_chart = alt.Chart(top_entities).mark_arc().encode(
+        theta=alt.Theta(field="abs_amount", type="quantitative"),
+        color=alt.Color(field="counterparty", type="nominal"),
+        tooltip=['counterparty', alt.Tooltip('amount', format=',.2f')]
+    )
+    st.altair_chart(pie_chart.properties(height=400), use_container_width=True)
+
+    # ==============================
+    # TABLEAU DÉTAILLÉ PAR ENTITÉ
+    # ==============================
+    st.markdown("### 📋 Détail par entité")
+    st.dataframe(top_entities[['counterparty', 'amount']].rename(columns={'counterparty':'Entité','amount':'Montant'}), use_container_width=True)
 
     # ==============================
     # ÉVOLUTION TEMPORELLE
@@ -186,4 +203,4 @@ if uploaded_file is not None:
                        file_name=f"transactions_{selected_category}.csv", mime="text/csv")
 
 else:
-    st.info("💡 Charge ton fichier Excel pour commencer l’analyse.")
+    st.info("💡 Charge ton fichier Excel pour
