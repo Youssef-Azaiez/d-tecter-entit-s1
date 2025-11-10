@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import altair as alt
 
 # ==============================
@@ -34,24 +33,41 @@ BUREAU = ["LIDL 1620", "NESPRESSO FRANCE S.A.S", "ORANGE SA-ORANGE", "EDF", "FNA
 def categorize_entity(counterparty, amount):
     cp = str(counterparty).upper().strip()
 
-    if amount > 0 and cp not in [x.upper() for x in CLIENT_EXCEPTIONS]:
-        return "Paiement client"
-    if cp in [x.upper() for x in TRANSPORT]:
-        return "Transport"
-# Transactions internes
+    # Transactions internes
     if cp in [x.upper() for x in CLIENT_EXCEPTIONS]:
         return "Interne"
+
+    # Paiements clients
+    if amount > 0 and cp not in [x.upper() for x in CLIENT_EXCEPTIONS]:
+        return "Paiement client"
+
+    # Transport
+    if cp in [x.upper() for x in TRANSPORT]:
+        return "Transport"
+
+    # Salaires
     if cp in [x.upper() for x in SALARIES]:
         return "Salaires"
+
+    # Saisie
     if "SEIZURE" in cp or "SAISIE" in cp:
         return "Saisie"
+
+    # Frais bancaires
     if "QONTO" in cp or "FRAIS BANCAIRES" in cp or "VIR BANCAIRE" in cp:
         return "Frais bancaires"
+
+    # Bureau
     if cp in [x.upper() for x in BUREAU]:
         return "Bureau"
+
+    # Restaurant
     if any(k in cp for k in ["RESTAURANT", "BURGER", "RESTAU", "BISTRO", "CAFÉ", "CAFE", "BRASSERIE"]):
         return "Restaurant"
+
+    # Par défaut
     return "Fournisseur"
+
 
 # ==============================
 # PRÉTRAITEMENT DU FICHIER
@@ -60,6 +76,7 @@ def categorize_entity(counterparty, amount):
 def preprocess(df):
     df = df.copy()
     df = df.rename(columns=lambda c: c.strip())
+
     rename_map = {
         'Nom de la contrepartie': 'counterparty',
         'Montant total (TTC)': 'amount',
@@ -77,8 +94,11 @@ def preprocess(df):
     df['amount'] = pd.to_numeric(df['amount'], errors='coerce').fillna(0)
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     df = df.dropna(subset=['date'])
+
+    # Ajout des catégories
     df['category'] = df.apply(lambda x: categorize_entity(x['counterparty'], x['amount']), axis=1)
     return df
+
 
 # ==============================
 # IMPORT DU FICHIER
@@ -93,7 +113,6 @@ if uploaded_file is not None:
         st.error(f"Erreur de lecture du fichier : {e}")
         st.stop()
 
-    # Exclusion des entités internes pour les totaux
     df_filtered_totals = df[~df['counterparty'].str.upper().isin([x.upper() for x in CLIENT_EXCEPTIONS])]
 
     # ==============================
@@ -110,7 +129,7 @@ if uploaded_file is not None:
     filtered = df[filt & (df['category'] == selected_category)].copy()
 
     # ==============================
-    # INDICATEURS CLÉS
+    # INDICATEURS GLOBAUX
     # ==============================
     total_received = df_filtered_totals[df_filtered_totals['amount'] > 0]['amount'].sum()
     total_spent = df_filtered_totals[df_filtered_totals['amount'] < 0]['amount'].sum()
@@ -125,7 +144,28 @@ if uploaded_file is not None:
     st.markdown("---")
 
     # ==============================
-    # DÉTAIL DE LA CATÉGORIE SÉLECTIONNÉE
+    # GRAPHE GLOBAL PAR CATÉGORIE
+    # ==============================
+    st.subheader("🌍 Vue d’ensemble par catégorie")
+    cat_summary = df.groupby("category")["amount"].sum().reset_index()
+    cat_summary["abs_amount"] = cat_summary["amount"].abs()
+
+    chart_global = alt.Chart(cat_summary).mark_bar().encode(
+        x=alt.X("abs_amount:Q", title="Montant total (€)"),
+        y=alt.Y("category:N", sort='-x', title="Catégorie"),
+        color=alt.condition(alt.datum.amount > 0, alt.value("#2ca02c"), alt.value("#d62728")),
+        tooltip=[
+            alt.Tooltip("category", title="Catégorie"),
+            alt.Tooltip("amount", title="Montant total", format=", .2f")
+        ]
+    ).properties(height=400, width="container")
+
+    st.altair_chart(chart_global, use_container_width=True)
+
+    st.markdown("---")
+
+    # ==============================
+    # ANALYSE DÉTAILLÉE DE LA CATÉGORIE
     # ==============================
     st.subheader(f"📈 Analyse détaillée : **{selected_category}**")
 
@@ -133,10 +173,9 @@ if uploaded_file is not None:
         st.warning("Aucune transaction trouvée pour cette catégorie.")
         st.stop()
 
-    # KPI catégorie
-    cat_total = filtered['amount'].sum()
-    cat_positive = filtered[filtered['amount'] > 0]['amount'].sum()
-    cat_negative = filtered[filtered['amount'] < 0]['amount'].sum()
+    cat_total = filtered["amount"].sum()
+    cat_positive = filtered[filtered["amount"] > 0]["amount"].sum()
+    cat_negative = filtered[filtered["amount"] < 0]["amount"].sum()
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total catégorie", f"{cat_total:,.2f} €")
@@ -147,14 +186,14 @@ if uploaded_file is not None:
     # TOP ENTITÉS
     # ==============================
     st.markdown("### 🏆 Top entités de cette catégorie")
-    top_entities = filtered.groupby('counterparty')['amount'].sum().reset_index().sort_values('amount', ascending=False)
-    top_entities['abs_amount'] = top_entities['amount'].abs()
+    top_entities = filtered.groupby("counterparty")["amount"].sum().reset_index().sort_values("amount", ascending=False)
+    top_entities["abs_amount"] = top_entities["amount"].abs()
 
     chart_entities = alt.Chart(top_entities).mark_bar().encode(
-        x=alt.X('abs_amount:Q', title="Montant total (€)"),
-        y=alt.Y('counterparty:N', sort='-x', title="Entité"),
+        x=alt.X("abs_amount:Q", title="Montant total (€)"),
+        y=alt.Y("counterparty:N", sort="-x", title="Entité"),
         color=alt.condition(alt.datum.amount > 0, alt.value("#2ca02c"), alt.value("#d62728")),
-        tooltip=['counterparty', alt.Tooltip('amount', format=',.2f')]
+        tooltip=["counterparty", alt.Tooltip("amount", format=", .2f")]
     )
     st.altair_chart(chart_entities.properties(height=400), use_container_width=True)
 
@@ -162,10 +201,10 @@ if uploaded_file is not None:
     # ÉVOLUTION TEMPORELLE
     # ==============================
     st.markdown("### 📅 Évolution temporelle")
-    time_series = filtered.groupby(pd.Grouper(key='date', freq='W'))['amount'].sum().reset_index()
+    time_series = filtered.groupby(pd.Grouper(key="date", freq="W"))["amount"].sum().reset_index()
     chart_time = alt.Chart(time_series).mark_line(point=True).encode(
-        x='date:T', y='amount:Q',
-        tooltip=['date', alt.Tooltip('amount', format=',.2f')]
+        x="date:T", y="amount:Q",
+        tooltip=["date", alt.Tooltip("amount", format=", .2f")]
     )
     st.altair_chart(chart_time.properties(height=300), use_container_width=True)
 
@@ -173,11 +212,15 @@ if uploaded_file is not None:
     # TABLE DÉTAILLÉE
     # ==============================
     st.markdown("### 📋 Transactions détaillées")
-    st.dataframe(filtered.sort_values('date', ascending=False), use_container_width=True)
+    st.dataframe(filtered.sort_values("date", ascending=False), use_container_width=True)
 
-    csv = filtered.to_csv(index=False).encode('utf-8')
-    st.download_button("⬇️ Télécharger les données filtrées", data=csv,
-                       file_name=f"transactions_{selected_category}.csv", mime="text/csv")
+    csv = filtered.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "⬇️ Télécharger les données filtrées",
+        data=csv,
+        file_name=f"transactions_{selected_category}.csv",
+        mime="text/csv"
+    )
 
 else:
     st.info("💡 Charge ton fichier Excel pour commencer l’analyse.")
