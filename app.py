@@ -30,7 +30,9 @@ SALARIES = [
 ]
 
 BUREAU = ["LIDL 1620", "NESPRESSO FRANCE S.A.S", "ORANGE SA-ORANGE", "EDF", "FNAC DARTY SERVICES","SCI Bertrand Republique"]
-Sous traitant = ["MD COUVERTURE"]
+
+Ss-traitant = ["MD COUVERTURE"]
+
 alt.data_transformers.disable_max_rows()
 alt.renderers.set_embed_options(actions=False)
 
