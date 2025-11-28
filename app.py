@@ -14,7 +14,7 @@ st.title("💰 Dashboard intelligent de trésorerie")
 # ==============================
 CLIENT_EXCEPTIONS = [
     "SMART DESIGN ET CONSTRUCTION", "SMART DESIGN", "SMART DESIGN VIVID",
-    "SAVINGS 15%", "COMPTE PRINCIPAL", "SLIM LINDA", "SMART DESIGN BTP BANQUE"
+    "SAVINGS 15%", "COMPTE PRINCIPAL", "SLIM LINDA", "SMART DESIGN BTP BANQUE", "Revolt Slim LINDA"
 ]
 
 TRANSPORT = ["TOTAL", "SNCF-VOYAGEURS", "ESSO BOBIGNY", "ESSOBOBIGNYPVC", "SANEF", "STATION BP NOISY", "RATP", "BOLT", "GARE DU NORD","BP AMIENS LONGPR","ESSO MARCOUSSIS",
@@ -46,6 +46,8 @@ def categorize_entity(counterparty, amount):
         return "Paiement client"
     if cp in [x.upper() for x in TRANSPORT]:
         return "Transport"
+     if cp in [x.upper() for x in Sous traitant]:
+        return "Sous traitant"
     if cp in [x.upper() for x in SALARIES]:
         return "Salaires"
     if "SEIZURE" in cp or "SAISIE" in cp:
@@ -54,7 +56,7 @@ def categorize_entity(counterparty, amount):
         return "Frais bancaires"
     if cp in [x.upper() for x in BUREAU]:
         return "Bureau"
-    if any(k in cp for k in ["RESTAURANT", "BURGER", "RESTAU", "BISTRO", "CAFÉ", "CAFE", "BRASSERIE"]):
+    if any(k in cp for k in ["RESTAURANT", "BURGER", "RESTAU", "BISTRO", "CAFÉ", "CAFE", "BRASSERIE", "MAMATTE", "SOUVLAKI GRILL", "SO GOOD"]):
         return "Restaurant"
     return "Fournisseur"
 
