@@ -31,7 +31,6 @@ SALARIES = [
 
 BUREAU = ["LIDL 1620", "NESPRESSO FRANCE S.A.S", "ORANGE SA-ORANGE", "EDF", "FNAC DARTY SERVICES","SCI Bertrand Republique"]
 
-Ss-traitant = ["MD COUVERTURE"]
 
 alt.data_transformers.disable_max_rows()
 alt.renderers.set_embed_options(actions=False)
@@ -48,14 +47,14 @@ def categorize_entity(counterparty, amount):
         return "Paiement client"
     if cp in [x.upper() for x in TRANSPORT]:
         return "Transport"
-     if cp in [x.upper() for x in Ss-traitant]:
-        return "Sous traitant"
     if cp in [x.upper() for x in SALARIES]:
         return "Salaires"
     if "SEIZURE" in cp or "SAISIE" in cp:
         return "Saisie"
     if "QONTO" in cp or "FRAIS BANCAIRES" in cp or "VIR BANCAIRE" in cp:
         return "Frais bancaires"
+    if "MD COUVERTURE" in cp or "besni" in cp or "singh" in cp:
+        return "SS traitant"
     if cp in [x.upper() for x in BUREAU]:
         return "Bureau"
     if any(k in cp for k in ["RESTAURANT", "BURGER", "RESTAU", "BISTRO", "CAFÉ", "CAFE", "BRASSERIE", "MAMATTE", "SOUVLAKI GRILL", "SO GOOD"]):
